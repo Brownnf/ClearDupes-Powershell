@@ -46,8 +46,7 @@ if ($filesToDelete.Count -gt 0) {
     $confirmation = Read-Host "Do you want to view these items? (Y/N)"
         if ($confirmation -eq "Y" -or $confirmation -eq "y") {
         foreach ($fileToDelete in $filesToDelete) {
-            $substringAfterSlash = $fileToDelete.Split("\")[-1]
-            Write-Host "$substringAfterSlash"
+            Write-Host "$fileToDelete"
         }}
     Write-Host
     $confirmation = Read-Host "Do you want to proceed with the deletion? (Y/N)"
