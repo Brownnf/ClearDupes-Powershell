@@ -1,41 +1,57 @@
-# Define the source and destination directories
-$sourceDirectory = "C:\Path\to\Source"
-$destinationDirectory = "C:\Path\to\Destination"
 $ErrorActionPreference = "SilentlyContinue"
+# Function to compute hash of a file
+function Get-FileHash($filePath) {
+    $hashAlgorithm = [System.Security.Cryptography.HashAlgorithm]::Create("SHA256")
+    $fileStream = [System.IO.File]::OpenRead($filePath)
+    $hashBytes = $hashAlgorithm.ComputeHash($fileStream)
+    $fileStream.Close()
+    $hashString = [System.BitConverter]::ToString($hashBytes) -replace '-', ''
+    return $hashString.ToLower()
+}
 
-# Function to recursively compare files and collect matching files for deletion
-function Compare-And-Collect-Files ($sourcePath, $destinationPath, [ref]$filesToDelete) {
-    $sourceFiles = Get-ChildItem -Path $sourcePath -File -Recurse
-    $destinationFiles = Get-ChildItem -Path $destinationPath -File -Recurse
+# Source directory
+$sourceDirectory = "C:\Path\To\Source"
 
-    # Compare and collect matching files for deletion
-    foreach ($file in $sourceFiles) {
-        $destinationFile = $destinationFiles | Where-Object { $_.Name -eq $file.Name }
+# Target directory
+$targetDirectory = "C:\Path\To\Target"
 
-        if ($destinationFile -ne $null) {
-            
-            $filesToDelete.Value += $file.FullName
-        }
-    }
+# Hashtable for source directory
+$sourceHashtable = @{}
 
-    # Recursively process sub-directories
-    $sourceSubDirectories = Get-ChildItem -Path $sourcePath -Directory
-    $destinationSubDirectories = Get-ChildItem -Path $destinationPath -Directory
+# Hashtable for target directory
+$targetHashtable = @{}
 
-    foreach ($subDir in $sourceSubDirectories) {
-        $matchingDestinationDir = $destinationSubDirectories | Where-Object { $_.Name -eq $subDir.Name }
-
-        if ($matchingDestinationDir -ne $null) {
-            
-            Compare-And-Collect-Files $subDir.FullName $matchingDestinationDir.FullName $filesToDelete
-        }
+# Function to recursively traverse directories and populate hash tables
+function Populate-Hashtable($directory, [ref]$hashTable) {
+    Get-ChildItem -Path $directory -File -Recurse | ForEach-Object {
+        $hash = Get-FileHash $_.FullName
+        $hashTable.Value[$_.FullName] = $hash
     }
 }
 
-# Call the function to collect files to delete
-$filesToDelete = @()
-Write-Host "Collecting files to delete..."
-Compare-And-Collect-Files $sourceDirectory $destinationDirectory ([ref]$filesToDelete)
+# Populate hash table for source directory
+Populate-Hashtable $sourceDirectory ([ref]$sourceHashtable)
+
+# Populate hash table for target directory
+Populate-Hashtable $targetDirectory ([ref]$targetHashtable)
+
+# Function to compare hash tables and create a new hash table with duplicate files
+function Compare-HashTables($sourceHashTable, $targetHashTable) {
+    $duplicateHashTable = @{}
+    foreach ($sourceFile in $sourceHashTable.Keys) {
+        $sourceHash = $sourceHashTable[$sourceFile]
+        if ($targetHashTable.ContainsValue($sourceHash)) {
+            $duplicateHashTable[$sourceFile] = $sourceHash
+        }
+    }
+    return $duplicateHashTable
+}
+
+# Compare hash tables and create a new hash table with duplicate files
+$duplicateHashTable = Compare-HashTables $sourceHashtable $targetHashtable
+
+# Create array from duplicate hash keys
+$filesToDelete = $duplicateHashTable.Keys
 
 Write-Host
 # Prompt the user for confirmation before deleting the selected files
